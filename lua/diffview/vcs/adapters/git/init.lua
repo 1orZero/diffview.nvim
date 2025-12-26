@@ -182,6 +182,24 @@ local function is_jj_repo(path)
   return false
 end
 
+---Get git root using jj git root command
+---@param path string
+---@return string?
+local function get_jj_git_root(path)
+  local out, code = utils.job({ "jj", "git", "root" }, path)
+  if code ~= 0 then return nil end
+  return out[1] and vim.trim(out[1])
+end
+
+---Get jj workspace root
+---@param path string
+---@return string?
+local function get_jj_root(path)
+  local out, code = utils.job({ "jj", "root" }, path)
+  if code ~= 0 then return nil end
+  return out[1] and vim.trim(out[1])
+end
+
 ---Get the git toplevel directory from a path to file or directory
 ---@param path string
 ---@return string?
