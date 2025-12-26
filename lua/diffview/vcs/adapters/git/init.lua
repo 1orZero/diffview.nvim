@@ -204,6 +204,12 @@ end
 ---@param path string
 ---@return string?
 local function get_toplevel(path)
+  -- Try jj first if in jj repo
+  if is_jj_repo(path) then
+    local jj_root = get_jj_root(path)
+    if jj_root then return jj_root end
+  end
+  -- Fall back to git
   local out, code = utils.job(utils.flatten({
     config.get_config().git_cmd,
     { "rev-parse", "--path-format=absolute", "--show-toplevel" },
