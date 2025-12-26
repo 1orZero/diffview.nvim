@@ -166,6 +166,22 @@ function GitAdapter.get_repo_paths(path_args, cpath)
   return paths, top_indicators
 end
 
+---Check if path is inside a jj repository
+---@param path string
+---@return boolean
+local function is_jj_repo(path)
+  local jj_dir = pl:join(path, ".jj")
+  if pl:is_dir(jj_dir) then return true end
+  local parent = pl:parent(path)
+  while parent and parent ~= path do
+    jj_dir = pl:join(parent, ".jj")
+    if pl:is_dir(jj_dir) then return true end
+    path = parent
+    parent = pl:parent(path)
+  end
+  return false
+end
+
 ---Get the git toplevel directory from a path to file or directory
 ---@param path string
 ---@return string?
