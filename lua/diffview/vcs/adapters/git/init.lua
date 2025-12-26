@@ -315,6 +315,12 @@ function GitAdapter:get_log_args(args)
 end
 
 function GitAdapter:get_dir(path)
+  -- Try jj first if in jj repo
+  if is_jj_repo(path) then
+    local jj_git_root = get_jj_git_root(path)
+    if jj_git_root then return jj_git_root end
+  end
+  -- Fall back to git
   local out, code = self:exec_sync({ "rev-parse", "--path-format=absolute", "--git-dir" }, path)
   if code ~= 0 then
     return nil
