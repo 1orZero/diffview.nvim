@@ -304,6 +304,25 @@ function GitAdapter:get_command()
   return config.get_config().git_cmd
 end
 
+---Override args to include --git-dir and --work-tree for jj workspaces
+---where the git directory is separate from the work tree
+---@return string[]
+function GitAdapter:args()
+  local base_args = utils.vec_slice(self:get_command(), 2)
+  -- Check if git dir is outside toplevel (jj workspace case)
+  if self.ctx.dir and self.ctx.toplevel then
+    local git_dir_in_toplevel = self.ctx.dir:find(self.ctx.toplevel, 1, true) == 1
+    if not git_dir_in_toplevel then
+      return utils.vec_join(
+        base_args,
+        "--git-dir=" .. self.ctx.dir,
+        "--work-tree=" .. self.ctx.toplevel
+      )
+    end
+  end
+  return base_args
+end
+
 ---@param path string
 ---@param rev Rev?
 function GitAdapter:get_show_args(path, rev)
