@@ -166,10 +166,50 @@ function GitAdapter.get_repo_paths(path_args, cpath)
   return paths, top_indicators
 end
 
+---Check if path is inside a jj repository
+---@param path string
+---@return boolean
+local function is_jj_repo(path)
+  local jj_dir = pl:join(path, ".jj")
+  if pl:is_dir(jj_dir) then return true end
+  local parent = pl:parent(path)
+  while parent and parent ~= path do
+    jj_dir = pl:join(parent, ".jj")
+    if pl:is_dir(jj_dir) then return true end
+    path = parent
+    parent = pl:parent(path)
+  end
+  return false
+end
+
+---Get git root using jj git root command
+---@param path string
+---@return string?
+local function get_jj_git_root(path)
+  local out, code = utils.job({ "jj", "git", "root" }, path)
+  if code ~= 0 then return nil end
+  return out[1] and vim.trim(out[1])
+end
+
+---Get jj workspace root
+---@param path string
+---@return string?
+local function get_jj_root(path)
+  local out, code = utils.job({ "jj", "root" }, path)
+  if code ~= 0 then return nil end
+  return out[1] and vim.trim(out[1])
+end
+
 ---Get the git toplevel directory from a path to file or directory
 ---@param path string
 ---@return string?
 local function get_toplevel(path)
+  -- Try jj first if in jj repo
+  if is_jj_repo(path) then
+    local jj_root = get_jj_root(path)
+    if jj_root then return jj_root end
+  end
+  -- Fall back to git
   local out, code = utils.job(utils.flatten({
     config.get_config().git_cmd,
     { "rev-parse", "--path-format=absolute", "--show-toplevel" },
@@ -264,6 +304,25 @@ function GitAdapter:get_command()
   return config.get_config().git_cmd
 end
 
+---Override args to include --git-dir and --work-tree for jj workspaces
+---where the git directory is separate from the work tree
+---@return string[]
+function GitAdapter:args()
+  local base_args = utils.vec_slice(self:get_command(), 2)
+  -- Check if git dir is outside toplevel (jj workspace case)
+  if self.ctx.dir and self.ctx.toplevel then
+    local git_dir_in_toplevel = self.ctx.dir:find(self.ctx.toplevel, 1, true) == 1
+    if not git_dir_in_toplevel then
+      return utils.vec_join(
+        base_args,
+        "--git-dir=" .. self.ctx.dir,
+        "--work-tree=" .. self.ctx.toplevel
+      )
+    end
+  end
+  return base_args
+end
+
 ---@param path string
 ---@param rev Rev?
 function GitAdapter:get_show_args(path, rev)
@@ -275,6 +334,12 @@ function GitAdapter:get_log_args(args)
 end
 
 function GitAdapter:get_dir(path)
+  -- Try jj first if in jj repo
+  if is_jj_repo(path) then
+    local jj_git_root = get_jj_git_root(path)
+    if jj_git_root then return jj_git_root end
+  end
+  -- Fall back to git
   local out, code = self:exec_sync({ "rev-parse", "--path-format=absolute", "--git-dir" }, path)
   if code ~= 0 then
     return nil
